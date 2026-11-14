@@ -47,8 +47,11 @@
   --halo: rgba(244, 245, 249, 0.82);
 
   /* Variant 10 static placeholder tone */
-  --skeleton-base: rgba(0, 0, 0, 0.06);
+  --skeleton-base: rgba(0, 0, 0, 0.05);
   --skeleton-highlight: rgba(255, 255, 255, 0.75);
+
+  /* Subtle legal links color */
+  --legal-color: rgba(29, 29, 31, 0.28);
 
   color-scheme: light;
   box-sizing: border-box;
@@ -98,8 +101,10 @@
     --pill-bg: rgba(255, 255, 255, 0.08);
     --halo: rgba(5, 5, 8, 0.78);
 
-    --skeleton-base: rgba(255, 255, 255, 0.06);
-    --skeleton-highlight: rgba(255, 255, 255, 0.16);
+    --skeleton-base: rgba(255, 255, 255, 0.05);
+    --skeleton-highlight: rgba(255, 255, 255, 0.15);
+
+    --legal-color: rgba(255, 255, 255, 0.22);
 
     color-scheme: dark;
   }
@@ -143,8 +148,9 @@
     0 6px 16px rgba(0, 0, 0, 0.5);
   --pill-bg: rgba(255, 255, 255, 0.08);
   --halo: rgba(5, 5, 8, 0.78);
-  --skeleton-base: rgba(255, 255, 255, 0.06);
-  --skeleton-highlight: rgba(255, 255, 255, 0.16);
+  --skeleton-base: rgba(255, 255, 255, 0.05);
+  --skeleton-highlight: rgba(255, 255, 255, 0.15);
+  --legal-color: rgba(255, 255, 255, 0.22);
   color-scheme: dark;
 }
 
@@ -193,7 +199,7 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 14px;
   pointer-events: auto;
 }
 
@@ -249,11 +255,11 @@ body {
   outline-offset: 3px;
 }
 
-/* Legal links under logo (Оферта • Конфиденциальность) */
+/* Legal links under logo (Subtle, unobtrusive) */
 .legal-nav {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   padding-left: 14px;
   user-select: none;
 }
@@ -263,9 +269,9 @@ body {
   border: none;
   padding: 0;
   font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 500;
-  color: var(--mute);
+  font-size: 11px;
+  font-weight: 450;
+  color: var(--legal-color);
   cursor: pointer;
   transition: color .2s ease;
   line-height: 1.2;
@@ -273,13 +279,14 @@ body {
 
 .legal-btn:hover {
   color: var(--ink);
+  opacity: 0.75;
   text-decoration: underline;
 }
 
 .legal-dot {
-  opacity: 0.4;
-  font-size: 10px;
-  color: var(--mute);
+  color: var(--legal-color);
+  opacity: 0.6;
+  font-size: 9px;
 }
 
 main {
@@ -328,6 +335,7 @@ h1 {
 /* Liquid Glass Card (Original proportions strictly preserved) */
 .card {
   position: relative;
+  min-height: 233px;
   width: 100%;
   padding: 24px 22px;
   border-radius: 28px;
@@ -473,17 +481,19 @@ h1 {
 
 .card-title {
   display: block;
-  font-size: 20px;
+  font-size: 19px;
   font-weight: 600;
   letter-spacing: -0.02em;
   margin-bottom: 5px;
+  white-space: nowrap;
 }
 
 .card-desc {
   margin: 0;
   color: var(--mute);
-  font-size: 14.5px;
+  font-size: 14px;
   line-height: 1.42;
+  white-space: nowrap;
 }
 
 .micro-preview {
@@ -538,9 +548,8 @@ h1 {
 }
 
 .s-icon { width: 44px; height: 44px; border-radius: 15px; }
-.s-title { height: 20px; width: 68%; border-radius: 7px; margin-bottom: 6px; }
-.s-d1 { height: 14px; width: 95%; border-radius: 5px; margin-bottom: 5px; }
-.s-d2 { height: 14px; width: 58%; border-radius: 5px; }
+.s-title { height: 19px; width: 68%; border-radius: 7px; margin-bottom: 5px; }
+.s-desc { height: 14px; width: 90%; border-radius: 5px; }
 .s-b1 { height: 23px; width: 44px; border-radius: 7px; }
 .s-b2 { height: 23px; width: 66px; border-radius: 7px; }
 
@@ -676,7 +685,7 @@ h1 {
 @media (max-width: 520px) {
   .topbar { left: 16px; right: 16px; }
   .brand-logo-svg { height: 22px; }
-  .legal-nav { padding-left: 8px; font-size: 11px; }
+  .legal-nav { padding-left: 8px; font-size: 10.5px; }
   .modal-card { max-height: 90vh; }
   .modal-header, .modal-body, .modal-footer { padding-left: 20px; padding-right: 20px; }
 }
@@ -719,7 +728,7 @@ h1 {
       </svg>
     </a>
 
-    <!-- Legal Links (Оферта • Конфиденциальность) -->
+    <!-- Subtle Legal Links (Оферта • Конфиденциальность) -->
     <nav class="legal-nav" aria-label="Юридические документы">
       <button type="button" class="legal-btn" onclick="openLegalModal('terms')">Оферта</button>
       <span class="legal-dot">•</span>
@@ -751,8 +760,8 @@ h1 {
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
         <div class="card-body">
-          <span class="card-title">Аналитика для бизнеса</span>
-          <p class="card-desc" id="d1">Стратегическая сессия, риски, RGM</p>
+          <span class="card-title">Бизнес-аналитика</span>
+          <p class="card-desc" id="d1">Стратегия, риски и RGM</p>
         </div>
         <div class="micro-preview">
           <span class="badge-pill badge-accent">B2B</span>
@@ -771,8 +780,8 @@ h1 {
           <span class="arrow" aria-hidden="true">↗</span>
         </div>
         <div class="card-body">
-          <span class="card-title">Курьерская аналитика</span>
-          <p class="card-desc" id="d2">Удобная аналитика дохода → Нужные показатели всегда рядом.</p>
+          <span class="card-title">Доход курьера</span>
+          <p class="card-desc" id="d2">Нужные показатели рядом</p>
         </div>
         <div class="micro-preview">
           <span class="badge-pill badge-accent">B2C</span>
@@ -789,8 +798,7 @@ h1 {
         </div>
         <div class="card-body">
           <div class="s-title v10-elem"></div>
-          <div class="s-d1 v10-elem"></div>
-          <div class="s-d2 v10-elem"></div>
+          <div class="s-desc v10-elem"></div>
         </div>
         <div class="micro-preview">
           <span class="s-b1 v10-elem"></span>
@@ -807,8 +815,7 @@ h1 {
         </div>
         <div class="card-body">
           <div class="s-title v10-elem"></div>
-          <div class="s-d1 v10-elem"></div>
-          <div class="s-d2 v10-elem"></div>
+          <div class="s-desc v10-elem"></div>
         </div>
         <div class="micro-preview">
           <span class="s-b1 v10-elem"></span>
