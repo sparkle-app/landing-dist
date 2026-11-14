@@ -53,6 +53,9 @@
   /* Subtle legal links color */
   --legal-color: rgba(29, 29, 31, 0.36);
 
+  /* Dynamic bottom reservoir ambient glow (0 in standard state) */
+  --reservoir-glow: 0;
+
   color-scheme: light;
   box-sizing: border-box;
   padding-top: env(safe-area-inset-top, 0px);
@@ -180,6 +183,15 @@ body {
   animation: fade .6s ease-out backwards;
 }
 
+#wowCanvas {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 4;
+  pointer-events: none;
+}
+
 @keyframes fade { from { opacity: 0; } }
 
 /* Top Navigation Bar (Logo Top-Left + Theme Toggle Top-Right) */
@@ -188,7 +200,7 @@ body {
   top: max(18px, env(safe-area-inset-top, 18px));
   left: 24px;
   right: 24px;
-  z-index: 3;
+  z-index: 5;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -209,7 +221,10 @@ body {
   border-radius: 999px;
   border: 1px solid var(--glass-edge);
   background: var(--glass-bg);
-  box-shadow: var(--glass-specular);
+  box-shadow:
+    var(--glass-specular),
+    0 10px 30px -6px rgba(255, 61, 113, calc(var(--reservoir-glow) * 0.35)),
+    inset 0 -1.5px 8px rgba(255, 138, 61, calc(var(--reservoir-glow) * 0.32));
   backdrop-filter: blur(26px) saturate(200%);
   -webkit-backdrop-filter: blur(26px) saturate(200%);
   transition: transform .35s cubic-bezier(0.22, 1, 0.36, 1),
@@ -223,6 +238,9 @@ body {
   padding: 9px 18px 9px 14px;
   text-decoration: none;
   color: var(--ink);
+  cursor: pointer;
+  transform-origin: 50% 50%;
+  will-change: transform;
 }
 
 .brand-pill:hover,
@@ -321,6 +339,10 @@ h1 {
   font-weight: 650;
   line-height: 1.04;
   letter-spacing: -0.04em;
+  text-shadow:
+    0 14px 36px rgba(255, 61, 113, calc(var(--reservoir-glow) * 0.36)),
+    0 6px 18px rgba(122, 92, 255, calc(var(--reservoir-glow) * 0.28)),
+    0 22px 48px rgba(47, 184, 255, calc(var(--reservoir-glow) * 0.24));
 }
 
 .products {
@@ -690,14 +712,14 @@ h1 {
   .topbar { left: 16px; right: 16px; }
   .brand-logo-svg { height: 22px; }
   .legal-nav {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 0;
-  margin: 0;
-  user-select: none;
-}
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 0;
+    margin: 0;
+    user-select: none;
+  }
   .modal-card { max-height: 90vh; }
   .modal-header, .modal-body, .modal-footer { padding-left: 20px; padding-right: 20px; }
 }
@@ -710,11 +732,12 @@ h1 {
 </head>
 <body>
 <canvas id="field" aria-hidden="true"></canvas>
+<canvas id="wowCanvas" aria-hidden="true"></canvas>
 
 <header class="topbar">
   <div class="brand-stack">
     <!-- Brand Logo Pill -->
-    <a class="brand-pill" href="#" aria-label="Sparkle Lab">
+    <a class="brand-pill" id="brandLogo" href="#" aria-label="Sparkle Lab">
       <svg class="brand-logo-svg" viewBox="0 0 430 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sparkle Lab">
         <defs>
           <linearGradient id="triRim" x1="0" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
@@ -858,10 +881,13 @@ h1 {
 <script>
 (() => {
   const root = document.documentElement;
+  const isDarkMode = () =>
+    root.getAttribute('data-theme') === 'dark' ||
+    (!root.hasAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches);
+
   document.getElementById('themeBtn').addEventListener('click', () => {
-    const isDark = root.getAttribute('data-theme') === 'dark' ||
-      (!root.hasAttribute('data-theme') && matchMedia('(prefers-color-scheme: dark)').matches);
-    root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    root.setAttribute('data-theme', isDarkMode() ? 'light' : 'dark');
+    tick();
   });
 
   const cards = document.querySelectorAll('.card');
@@ -874,22 +900,42 @@ h1 {
   });
 
   const c = document.getElementById('field'), x = c.getContext('2d');
+  const wc = document.getElementById('wowCanvas'), wx = wc.getContext('2d');
   const C = ['#ff8a3d', '#ff3d71', '#7a5cff', '#2fb8ff', '#34c759'];
-  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  let w = 0, h = 0, D = [], m = { x: -1e3, y: -1e3 }, activeColor = null, running = false, rt;
+
+  const hexToRgb = hex => {
+    const n = parseInt(hex.slice(1), 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+  };
+  const RGB_MAP = Object.fromEntries(C.map(hex => [hex, hexToRgb(hex)]));
+
+  let w = 0, h = 0, dpr = 1, D = [], m = { x: -1e3, y: -1e3 }, activeColor = null, running = false, rt;
+  let wowActive = false;
+  let fieldFadeFactor = 1;
+  let fieldColorSaturation = 1;
 
   const initDots = (count) => {
     D = Array.from({ length: count }, (_, i) => {
       const nx = Math.random(), ny = Math.random();
-      return { nx, ny, hx: nx * w, hy: ny * h, x: nx * w, y: ny * h, c: C[i % 5], r: 1.6 + Math.random() * 2.4 };
+      const col = C[i % 5];
+      return {
+        nx, ny,
+        hx: nx * w, hy: ny * h,
+        x: nx * w, y: ny * h,
+        c: col,
+        rgb: RGB_MAP[col],
+        r: 1.6 + Math.random() * 2.4
+      };
     });
   };
 
   const fit = () => {
-    const d = Math.min(window.devicePixelRatio || 1, 2);
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
     w = innerWidth; h = innerHeight;
-    c.width = w * d; c.height = h * d;
-    x.setTransform(d, 0, 0, d, 0, 0);
+    c.width = w * dpr; c.height = h * dpr;
+    x.setTransform(dpr, 0, 0, dpr, 0, 0);
+    wc.width = w * dpr; wc.height = h * dpr;
+    wx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const targetCount = Math.min(540, w * h / 4600 | 0);
     if (!D.length) initDots(targetCount);
     else D.forEach(p => { p.hx = p.nx * w; p.hy = p.ny * h; });
@@ -899,37 +945,1200 @@ h1 {
     if (document.hidden) { running = false; return; }
     x.clearRect(0, 0, w, h);
     let busy = false;
+    const isDark = isDarkMode();
+    const neutralTone = isDark ? { r: 130, g: 134, b: 148 } : { r: 182, g: 185, b: 198 };
+
     D.forEach(p => {
       const dx = p.x - m.x, dy = p.y - m.y, dist = Math.hypot(dx, dy);
       const f = dist < 150 ? (150 - dist) / 150 * 70 : 0;
       const tx = p.hx + (dx / dist || 0) * f, ty = p.hy + (dy / dist || 0) * f;
       p.x += (tx - p.x) * .09; p.y += (ty - p.y) * .09;
       if (Math.abs(tx - p.x) + Math.abs(ty - p.y) > .05) busy = true;
+
       const match = activeColor && p.c === activeColor;
-      x.globalAlpha = activeColor ? (match ? 0.95 : 0.22) : 0.76;
-      x.fillStyle = p.c;
+      const baseAlpha = activeColor ? (match ? 0.95 : 0.22) : 0.76;
+      const alpha = baseAlpha * fieldFadeFactor;
+      if (alpha <= 0.004) return;
+
+      x.globalAlpha = alpha;
+      if (fieldColorSaturation >= 0.995) {
+        x.fillStyle = p.c;
+      } else {
+        const s = fieldColorSaturation;
+        const rr = (neutralTone.r + (p.rgb.r - neutralTone.r) * s) | 0;
+        const gg = (neutralTone.g + (p.rgb.g - neutralTone.g) * s) | 0;
+        const bb = (neutralTone.b + (p.rgb.b - neutralTone.b) * s) | 0;
+        x.fillStyle = `rgb(${rr},${gg},${bb})`;
+      }
       x.beginPath();
       x.arc(p.x, p.y, match ? p.r * 1.3 : p.r, 0, 7);
       x.fill();
     });
-    if (busy) requestAnimationFrame(tick); else running = false;
+    if (busy || wowActive) requestAnimationFrame(tick); else running = false;
   };
-  const wake = () => { if (!running && !RM) { running = true; requestAnimationFrame(tick); } else if (RM) { tick(); } };
 
-  fit(); tick();
-  if (!RM) {
-    addEventListener('pointermove', e => { m.x = e.clientX; m.y = e.clientY; wake(); }, { passive: true });
-    document.documentElement.addEventListener('pointerleave', () => { m.x = -1e3; wake(); });
-    addEventListener('pointerup', e => { if (e.pointerType === 'touch') { setTimeout(() => { m.x = -1e3; wake(); }, 350); } });
-  }
+  const wake = () => {
+    if (!running) {
+      running = true;
+      requestAnimationFrame(tick);
+    }
+  };
+
+  fit();
+  tick();
+
+  addEventListener('pointermove', e => { m.x = e.clientX; m.y = e.clientY; wake(); }, { passive: true });
+  document.documentElement.addEventListener('pointerleave', () => { m.x = -1e3; wake(); });
+  addEventListener('pointerup', e => { if (e.pointerType === 'touch') { setTimeout(() => { m.x = -1e3; wake(); }, 350); } });
+
   cards.forEach(card => {
     if (card.getAttribute('aria-disabled') === 'true') return;
-    card.addEventListener('pointerenter', () => { activeColor = card.dataset.color; tick(); });
-    card.addEventListener('pointerleave', () => { activeColor = null; tick(); });
-    card.addEventListener('focus', () => { activeColor = card.dataset.color; tick(); });
-    card.addEventListener('blur', () => { activeColor = null; tick(); });
+    card.addEventListener('pointerenter', () => { if (!wowActive) { activeColor = card.dataset.color; wake(); } });
+    card.addEventListener('pointerleave', () => { if (!wowActive) { activeColor = null; wake(); } });
+    card.addEventListener('focus', () => { if (!wowActive) { activeColor = card.dataset.color; wake(); } });
+    card.addEventListener('blur', () => { if (!wowActive) { activeColor = null; wake(); } });
   });
   addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { fit(); wake(); }, 120); });
+
+  /* ==========================================================================
+     PHOTOREALISTIC OPTICAL LIQUID GLASS ENGINE
+     ========================================================================== */
+  const brandLogo = document.getElementById('brandLogo');
+  const productsList = document.querySelector('.products');
+
+  const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const smoothstep = (e0, e1, v) => {
+    const t = clamp((v - e0) / (e1 - e0), 0, 1);
+    return t * t * (3 - 2 * t);
+  };
+
+  function roundedRectChord(xOffset, width, radius) {
+    const r = Math.min(radius, width * 0.5);
+    if (xOffset < r) {
+      const dx = r - xOffset;
+      return r - Math.sqrt(Math.max(0, r * r - dx * dx));
+    }
+    if (xOffset > width - r) {
+      const dx = xOffset - (width - r);
+      return r - Math.sqrt(Math.max(0, r * r - dx * dx));
+    }
+    return 0;
+  }
+
+  function drawRoundedRectPath(ctx, rx, ry, rw, rh, rad) {
+    const r = Math.min(rad, rw * 0.5, rh * 0.5);
+    ctx.beginPath();
+    ctx.moveTo(rx + r, ry);
+    ctx.arcTo(rx + rw, ry, rx + rw, ry + rh, r);
+    ctx.arcTo(rx + rw, ry + rh, rx, ry + rh, r);
+    ctx.arcTo(rx, ry + rh, rx, ry, r);
+    ctx.arcTo(rx, ry, rx + rw, ry, r);
+    ctx.closePath();
+  }
+
+  // Renders an exact high-DPI snapshot of a DOM card onto an offscreen canvas
+  // so the melting slices refract and stretch the actual card graphics seamlessly
+  function createCardSnapshot(el, rect, rgb, idx, isDark) {
+    const off = document.createElement('canvas');
+    const cw = Math.ceil(rect.width);
+    const ch = Math.ceil(rect.height);
+    off.width = cw * dpr;
+    off.height = ch * dpr;
+    const ox = off.getContext('2d');
+    ox.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const { r: cr, g: cg, b: cb } = rgb;
+    const isDisabled = el.getAttribute('aria-disabled') === 'true';
+
+    ox.save();
+    drawRoundedRectPath(ox, 0, 0, cw, ch, 28);
+    ox.clip();
+
+    // 1. Frosted glass base gradient
+    const g = ox.createLinearGradient(0, 0, cw, ch);
+    if (isDark) {
+      if (isDisabled) {
+        g.addColorStop(0, 'rgba(255,255,255,0.06)');
+        g.addColorStop(1, 'rgba(255,255,255,0.02)');
+      } else {
+        g.addColorStop(0, 'rgba(255,255,255,0.13)');
+        g.addColorStop(0.5, 'rgba(255,255,255,0.04)');
+        g.addColorStop(1, 'rgba(255,255,255,0.09)');
+      }
+    } else {
+      if (isDisabled) {
+        g.addColorStop(0, 'rgba(235,236,242,0.48)');
+        g.addColorStop(1, 'rgba(225,226,234,0.28)');
+      } else {
+        g.addColorStop(0, 'rgba(255,255,255,0.72)');
+        g.addColorStop(0.5, 'rgba(255,255,255,0.38)');
+        g.addColorStop(1, 'rgba(255,255,255,0.58)');
+      }
+    }
+    ox.fillStyle = g;
+    ox.fillRect(0, 0, cw, ch);
+
+    // 2. Top-left icon & top-right arrow
+    if (isDisabled) {
+      const skelFill = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)';
+      const skelStroke = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(29,29,31,0.08)';
+      ox.fillStyle = skelFill;
+      ox.strokeStyle = skelStroke;
+      ox.lineWidth = 1;
+
+      drawRoundedRectPath(ox, 22, 24, 44, 44, 15);
+      ox.fill(); ox.stroke();
+
+      drawRoundedRectPath(ox, 22, 102, cw * 0.62, 19, 7);
+      ox.fill(); ox.stroke();
+
+      drawRoundedRectPath(ox, 22, 126, cw * 0.82, 14, 5);
+      ox.fill(); ox.stroke();
+
+      // Divider
+      ox.beginPath();
+      ox.moveTo(22, ch - 58);
+      ox.lineTo(cw - 22, ch - 58);
+      ox.stroke();
+
+      drawRoundedRectPath(ox, 22, ch - 45, 44, 23, 7);
+      ox.fill(); ox.stroke();
+
+      drawRoundedRectPath(ox, cw - 22 - 66, ch - 45, 66, 23, 7);
+      ox.fill(); ox.stroke();
+    } else {
+      // Icon pill
+      drawRoundedRectPath(ox, 22, 24, 44, 44, 15);
+      ox.fillStyle = `rgba(${cr}, ${cg}, ${cb}, ${isDark ? 0.22 : 0.16})`;
+      ox.fill();
+
+      // Icon vector strokes
+      ox.save();
+      ox.translate(33, 35);
+      ox.strokeStyle = `rgb(${cr}, ${cg}, ${cb})`;
+      ox.lineWidth = 2;
+      ox.lineCap = 'round';
+      ox.lineJoin = 'round';
+      if (idx === 0) {
+        ox.beginPath();
+        ox.moveTo(2.5, 2.5); ox.lineTo(2.5, 19.5); ox.lineTo(19.5, 19.5);
+        ox.moveTo(18.5, 8.2); ox.lineTo(13.8, 12.8); ox.lineTo(10.2, 9.2); ox.lineTo(7.2, 12.2);
+        ox.stroke();
+      } else {
+        ox.beginPath();
+        ox.arc(11, 11, 8.2, 0, Math.PI * 2);
+        ox.moveTo(11, 6.4); ox.lineTo(11, 11); ox.lineTo(13.8, 13.8);
+        ox.stroke();
+      }
+      ox.restore();
+
+      // Arrow circle
+      drawRoundedRectPath(ox, cw - 22 - 30, 31, 30, 30, 15);
+      ox.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.58)';
+      ox.fill();
+      ox.fillStyle = isDark ? '#9a9aa2' : '#636369';
+      ox.font = '500 13px -apple-system, BlinkMacSystemFont, sans-serif';
+      ox.textAlign = 'center';
+      ox.textBaseline = 'middle';
+      ox.fillText('↗', cw - 22 - 15, 46);
+
+      // Title & description
+      ox.textAlign = 'left';
+      ox.textBaseline = 'alphabetic';
+      const titleText = el.querySelector('.card-title')?.textContent || '';
+      const descText = el.querySelector('.card-desc')?.textContent || '';
+      ox.fillStyle = isDark ? '#f5f5f7' : '#1d1d1f';
+      ox.font = '600 19px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ox.fillText(titleText, 22, 116);
+
+      ox.fillStyle = isDark ? '#9a9aa2' : '#636369';
+      ox.font = '400 14px -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif';
+      ox.fillText(descText, 22, 138);
+
+      // Divider
+      ox.strokeStyle = isDark ? 'rgba(255,255,255,0.12)' : 'rgba(29,29,31,0.08)';
+      ox.lineWidth = 1;
+      ox.beginPath();
+      ox.moveTo(22, ch - 58);
+      ox.lineTo(cw - 22, ch - 58);
+      ox.stroke();
+
+      // Badges
+      const badges = el.querySelectorAll('.badge-pill');
+      const b1 = badges[0]?.textContent || '';
+      const b2 = badges[1]?.textContent || '';
+
+      ox.font = '600 11.5px -apple-system, BlinkMacSystemFont, sans-serif';
+      const b1w = ox.measureText(b1).width + 20;
+      drawRoundedRectPath(ox, 22, ch - 45, b1w, 23, 8);
+      ox.fillStyle = `rgba(${cr}, ${cg}, ${cb}, 0.16)`;
+      ox.fill();
+      ox.fillStyle = `rgb(${cr}, ${cg}, ${cb})`;
+      ox.fillText(b1, 32, ch - 29.5);
+
+      ox.font = '500 11.5px -apple-system, BlinkMacSystemFont, sans-serif';
+      const b2w = ox.measureText(b2).width + 20;
+      drawRoundedRectPath(ox, cw - 22 - b2w, ch - 45, b2w, 23, 8);
+      ox.fillStyle = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.55)';
+      ox.fill();
+      ox.fillStyle = isDark ? '#9a9aa2' : '#636369';
+      ox.fillText(b2, cw - 22 - b2w + 10, ch - 29.5);
+    }
+
+    // Top specular glass rim
+    drawRoundedRectPath(ox, 0.75, 0.75, cw - 1.5, ch - 1.5, 27.5);
+    ox.strokeStyle = isDark ? 'rgba(255,255,255,0.28)' : 'rgba(255,255,255,0.85)';
+    ox.lineWidth = 1.5;
+    ox.stroke();
+
+    ox.restore();
+    return off;
+  }
+
+  brandLogo.addEventListener('click', e => {
+    e.preventDefault();
+    if (wowActive) return;
+    startWowSequence();
+  });
+
+  function startWowSequence() {
+    wowActive = true;
+    activeColor = null;
+    productsList.style.pointerEvents = 'none';
+    wake();
+
+    const startTime = performance.now();
+    let lastTime = startTime;
+    let overchargeStart = 0;
+    const isDarkStart = isDarkMode();
+
+    const rawRects = Array.from(cards).map(el => el.getBoundingClientRect());
+    const minX = Math.min(...rawRects.map(r => r.left));
+    const maxX = Math.max(...rawRects.map(r => r.right));
+    const minY = Math.min(...rawRects.map(r => r.top));
+    const maxY = Math.max(...rawRects.map(r => r.bottom));
+    const spanX = Math.max(1, maxX - minX);
+    const spanY = Math.max(1, maxY - minY);
+
+    const cardStates = Array.from(cards).map((el, idx) => {
+      const rect = rawRects[idx];
+      const color = el.dataset.color || C[idx % C.length];
+      const rgb = hexToRgb(color);
+      const isDisabled = el.getAttribute('aria-disabled') === 'true';
+
+      // Global Top-Right -> Bottom-Left delay across the card grid
+      const cx = rect.left + rect.width * 0.5;
+      const cy = rect.top + rect.height * 0.5;
+      const uScreen = (cx - minX) / spanX;
+      const vScreen = (cy - minY) / spanY;
+      const diagDist = (1 - uScreen) * 0.72 + vScreen * 0.28;
+      const cardDelay = diagDist * 0.42;
+
+      const snapshot = createCardSnapshot(el, rect, rgb, idx, isDarkStart);
+
+      // 38 high-density fluid columns per card
+      const colCount = 38;
+      // 4 natural Rayleigh-Plateau drip stream centers per card
+      const streamCenters = [0.16, 0.41, 0.67, 0.87];
+
+      const columns = Array.from({ length: colCount }, (_, ci) => {
+        const u = ci / (colCount - 1); // 0 = left, 1 = right
+        const xOff = u * rect.width;
+        const cornerInset = roundedRectChord(xOff, rect.width, 28);
+
+        // Compute how close this column is to one of the cylindrical stream channels
+        // (creates realistic hanging streams separated by concave catenary surface-tension arches)
+        let streamProfile = 0;
+        let nearestStreamIdx = 0;
+        streamCenters.forEach((sc, sIdx) => {
+          const dist = Math.abs(u - sc);
+          const bell = Math.exp(-(dist * dist) / 0.0085);
+          if (bell > streamProfile) {
+            streamProfile = bell;
+            nearestStreamIdx = sIdx;
+          }
+        });
+        const edgeTaper = Math.sin(u * Math.PI);
+        streamProfile *= Math.pow(edgeTaper, 0.45);
+
+        return {
+          u,
+          xOff,
+          cornerInset,
+          topY: rect.top + cornerInset,
+          botY: rect.bottom - cornerInset,
+          streamProfile,
+          isStreamPeak: streamProfile > 0.78,
+          nearestStreamIdx,
+          localSat: 0,
+          localMelt: 0,
+          waveBulge: 0,
+          dripCooldown: 0.04 + Math.random() * 0.11
+        };
+      });
+
+      return {
+        el,
+        idx,
+        rect,
+        color,
+        rgb,
+        isDisabled,
+        snapshot,
+        columns,
+        delay: cardDelay,
+        fullyDrained: false
+      };
+    });
+
+    // Hide static DOM cards immediately as offscreen-snapshot fluid meshes take over identically
+    cardStates.forEach(cs => {
+      cs.el.style.transition = 'none';
+      cs.el.style.opacity = '0';
+    });
+
+    const fluidDrops = [];
+    const splashDots = [];
+    const logoDrops = [];
+    let totalSpawnedMass = 0;
+    let accumulatedMass = 0;
+    let splashTriggered = false;
+    let splashStartTime = 0;
+
+    function spawnPendantDrop(cs, col, px, py, radius, vy, sat, withLigament) {
+      const mass = radius * radius * 0.16;
+      totalSpawnedMass += mass;
+      fluidDrops.push({
+        x: px + (Math.random() - 0.5) * 2.0,
+        y: py,
+        vx: -5 - (1 - col.u) * 8 + (Math.random() - 0.5) * 10,
+        vy,
+        r: radius,
+        color: cs.color,
+        rgb: cs.rgb,
+        saturation: clamp(sat, 0.42, 1),
+        mass,
+        wobblePhase: Math.random() * Math.PI * 2,
+        wobbleSpeed: 9 + Math.random() * 7,
+        anchorCol: withLigament ? col : null,
+        anchorCard: withLigament ? cs : null,
+        ligamentLife: withLigament ? 1.0 : 0
+      });
+
+      // Rayleigh-Plateau satellite micro-bead when ligament snaps
+      if (withLigament && radius > 4.4 && Math.random() < 0.7) {
+        const satR = 1.6 + Math.random() * 1.5;
+        const satMass = satR * satR * 0.16;
+        totalSpawnedMass += satMass;
+        fluidDrops.push({
+          x: px + (Math.random() - 0.5) * 2.5,
+          y: py - radius * 1.45,
+          vx: (Math.random() - 0.5) * 14,
+          vy: vy * 0.76,
+          r: satR,
+          color: cs.color,
+          rgb: cs.rgb,
+          saturation: clamp(sat + 0.1, 0.5, 1),
+          mass: satMass,
+          wobblePhase: Math.random() * Math.PI * 2,
+          wobbleSpeed: 12 + Math.random() * 6,
+          anchorCol: null,
+          anchorCard: null,
+          ligamentLife: 0
+        });
+      }
+    }
+
+    function updateAndDrawMeltingCard(cs, elapsed, dt, isDark) {
+      if (cs.fullyDrained) return;
+
+      const r = cs.rect;
+      const cols = cs.columns;
+      const n = cols.length;
+      const localCardT = elapsed - cs.delay;
+      const { r: cr, g: cg, b: cb } = cs.rgb;
+
+      const meltDuration = 1.68;
+      let activeCols = 0;
+      let sumMelt = 0;
+      let sumSat = 0;
+
+      // 1. Update each column along the Top-Right (u=1) -> Bottom-Left (u=0) diagonal wave
+      for (let i = 0; i < n; i++) {
+        const col = cols[i];
+        const diagOffset = (1 - col.u) * 0.58;
+        const ct = Math.max(0, localCardT - diagOffset);
+
+        const mNorm = clamp(ct / meltDuration, 0, 1);
+        const sat = smoothstep(0.0, 0.95, ct);
+        col.localMelt = mNorm;
+        col.localSat = sat;
+        sumMelt += mNorm;
+        sumSat += sat;
+
+        const baseTop = r.top + col.cornerInset;
+        const baseBot = r.bottom - col.cornerInset;
+        const fullH = Math.max(4, baseBot - baseTop);
+
+        if (ct <= 0) {
+          col.topY = baseTop;
+          col.botY = baseBot;
+          col.waveBulge = 0;
+          activeCols++;
+          continue;
+        }
+
+        // Max stream extension below the card bottom edge
+        const maxStreamLen = 28 + 92 * col.streamProfile;
+
+        // Bottom contour stretches down into cylindrical streams separated by concave catenary arches
+        const archBell = Math.sin(Math.pow(mNorm, 0.72) * Math.PI);
+        const botExtend =
+          archBell * maxStreamLen +
+          Math.pow(mNorm, 1.18) * (maxStreamLen * 0.55);
+
+        const targetBotY = baseBot + botExtend;
+
+        // Top meniscus accelerates downward and GUARANTEES overtaking targetBotY by mNorm = 0.94!
+        const totalTravel = fullH + maxStreamLen * 0.55 + 28;
+        const sagEase = Math.pow(mNorm, 1.52);
+        const meniscusRipple = Math.sin(ct * 7.5 + i * 0.55) * 2.2 * (1 - mNorm) * sat;
+        const rawTopY = baseTop + sagEase * totalTravel + meniscusRipple;
+
+        col.botY = targetBotY;
+        col.topY = Math.min(targetBotY, rawTopY);
+
+        // Diagonal wave-front bulge (thick glossy liquid lip rolling from Top-Right to Bottom-Left)
+        col.waveBulge = Math.sin(clamp(mNorm / 0.65, 0, 1) * Math.PI) * (1 - mNorm * 0.5);
+
+        const thickness = col.botY - col.topY;
+        if (thickness > 1.2 && mNorm < 0.96) {
+          activeCols++;
+
+          // Pinch off realistic pendant droplets from stream peaks & secondary channels
+          if (ct > 0.14 && mNorm < 0.90 && (col.isStreamPeak || (col.streamProfile > 0.35 && i % 4 === 0))) {
+            col.dripCooldown -= dt * (0.95 + col.streamProfile * 1.55) * (0.65 + sat * 0.65);
+            if (col.dripCooldown <= 0) {
+              col.dripCooldown = 0.045 + Math.random() * 0.068;
+              const px = r.left + col.xOff;
+              const dropR = (3.6 + Math.random() * 4.2) * (0.72 + 0.38 * col.streamProfile) * (1 - mNorm * 0.25);
+              const initVy = 75 + mNorm * 230 + col.streamProfile * 95;
+              spawnPendantDrop(cs, col, px, col.botY, dropR, initVy, clamp(sat + 0.15, 0.45, 1), true);
+              // Upward surface-tension recoil when droplet snaps off
+              col.botY = Math.max(col.topY, col.botY - dropR * 1.25);
+            }
+          }
+        } else {
+          col.topY = col.botY;
+        }
+      }
+
+      // Coupled surface-tension smoothing across neighboring columns
+      for (let pass = 0; pass < 2; pass++) {
+        for (let i = 1; i < n - 1; i++) {
+          cols[i].topY = cols[i].topY * 0.64 + (cols[i - 1].topY + cols[i + 1].topY) * 0.18;
+          cols[i].botY = Math.max(
+            cols[i].topY,
+            cols[i].botY * 0.68 + (cols[i - 1].botY + cols[i + 1].botY) * 0.16
+          );
+        }
+      }
+
+      // Guaranteed completion check (fixes the post-melt freeze)
+      if (activeCols === 0 || localCardT > 2.38) {
+        cs.fullyDrained = true;
+        return;
+      }
+
+      const avgMelt = sumMelt / n;
+      const avgSat = sumSat / n;
+      const remAlpha = clamp(1 - Math.pow(avgMelt, 3.6), 0, 1);
+      if (remAlpha <= 0.01) {
+        cs.fullyDrained = true;
+        return;
+      }
+
+      // Compute smooth contour coordinates with waist-necking
+      const topPts = [];
+      const botPts = [];
+      for (let i = 0; i < n; i++) {
+        const col = cols[i];
+        const neckPull = Math.sin(col.localMelt * Math.PI) * 9.5 * (col.u - 0.5);
+        const px = r.left + col.xOff - neckPull;
+        topPts.push({ x: px, y: col.topY });
+        botPts.push({ x: px, y: col.botY });
+      }
+
+      const traceLiquidContour = (ctx, ox = 0, oy = 0) => {
+        ctx.beginPath();
+        ctx.moveTo(topPts[0].x + ox, topPts[0].y + oy);
+        for (let i = 1; i < n; i++) {
+          const p0 = topPts[i - 1];
+          const p1 = topPts[i];
+          ctx.quadraticCurveTo(p0.x + ox, p0.y + oy, (p0.x + p1.x) * 0.5 + ox, (p0.y + p1.y) * 0.5 + oy);
+        }
+        ctx.lineTo(topPts[n - 1].x + ox, topPts[n - 1].y + oy);
+        ctx.lineTo(botPts[n - 1].x + ox, botPts[n - 1].y + oy);
+        for (let i = n - 2; i >= 0; i--) {
+          const p0 = botPts[i + 1];
+          const p1 = botPts[i];
+          ctx.quadraticCurveTo(p0.x + ox, p0.y + oy, (p0.x + p1.x) * 0.5 + ox, (p0.y + p1.y) * 0.5 + oy);
+        }
+        ctx.lineTo(botPts[0].x + ox, botPts[0].y + oy);
+        ctx.closePath();
+      };
+
+      // ======================================================================
+      // LAYER 1: 3D DROP SHADOW + TRANSMITTED CAUSTIC LIGHT ON BACKGROUND
+      // ======================================================================
+      wx.save();
+      traceLiquidContour(wx, -3.5 * avgMelt, 14 + avgMelt * 12);
+      const shadowAlpha = (isDark ? 0.54 : 0.16) * remAlpha;
+      const causticAlpha = (isDark ? 0.45 : 0.30) * avgSat * remAlpha;
+      wx.shadowColor = `rgba(${cr}, ${cg}, ${cb}, ${causticAlpha})`;
+      wx.shadowBlur = 30;
+      wx.fillStyle = `rgba(${(cr * avgSat * 0.42) | 0}, ${(cg * avgSat * 0.42) | 0}, ${(cb * avgSat * 0.42) | 0}, ${shadowAlpha})`;
+      wx.fill();
+      wx.restore();
+
+      // ======================================================================
+      // LAYER 2: CLIPPED REFRACTIVE GLASS VOLUME & TEXTURE WARPING
+      // ======================================================================
+      wx.save();
+      traceLiquidContour(wx, 0, 0);
+      wx.clip();
+
+      const sliceW = r.width / (n - 1);
+
+      // 2A. Draw real warped card texture strips + volumetric optical glass tint per column
+      for (let i = 0; i < n - 1; i++) {
+        const c0 = cols[i];
+        const c1 = cols[i + 1];
+        const yTop = Math.min(c0.topY, c1.topY);
+        const yBot = Math.max(c0.botY, c1.botY);
+        const curH = yBot - yTop;
+        if (curH <= 0.8) continue;
+
+        const sat = (c0.localSat + c1.localSat) * 0.5;
+        const melt = (c0.localMelt + c1.localMelt) * 0.5;
+        const dstX = topPts[i].x;
+        const dstW = Math.max(1.5, topPts[i + 1].x - topPts[i].x + 0.9);
+
+        // Refract and stretch the offscreen snapshot strip
+        const texAlpha = clamp(1 - Math.pow(sat, 1.45) * 0.72, 0.15, 1) * remAlpha;
+        wx.globalAlpha = texAlpha;
+        wx.drawImage(
+          cs.snapshot,
+          c0.xOff * dpr, 0, Math.max(1, sliceW * dpr), cs.snapshot.height,
+          dstX, yTop, dstW, curH
+        );
+
+        // Volumetric Beer-Lambert colored liquid glass shader over the strip
+        if (sat > 0.005) {
+          wx.globalAlpha = 1;
+          const colGrad = wx.createLinearGradient(0, yTop, 0, yBot);
+          // Upper meniscus: bright crystal-clear tinted refraction
+          const hiR = lerp(255, cr, 0.48 * sat) | 0;
+          const hiG = lerp(255, cg, 0.48 * sat) | 0;
+          const hiB = lerp(255, cb, 0.48 * sat) | 0;
+          // Deep optical density in thicker mid-lower volume
+          const deepR = (cr * (0.72 + 0.18 * (1 - sat))) | 0;
+          const deepG = (cg * (0.72 + 0.18 * (1 - sat))) | 0;
+          const deepB = (cb * (0.72 + 0.18 * (1 - sat))) | 0;
+          // Luminous lower focal caustic
+          const causR = lerp(cr, 255, 0.32 * sat) | 0;
+          const causG = lerp(cg, 255, 0.32 * sat) | 0;
+          const causB = lerp(cb, 255, 0.32 * sat) | 0;
+
+          colGrad.addColorStop(0, `rgba(${hiR}, ${hiG}, ${hiB}, ${0.42 * sat * remAlpha})`);
+          colGrad.addColorStop(0.28, `rgba(${cr}, ${cg}, ${cb}, ${(0.56 + 0.28 * sat) * remAlpha})`);
+          colGrad.addColorStop(0.76, `rgba(${deepR}, ${deepG}, ${deepB}, ${(0.76 + 0.18 * sat) * remAlpha})`);
+          colGrad.addColorStop(0.93, `rgba(${causR}, ${causG}, ${causB}, ${(0.86 + 0.12 * sat) * remAlpha})`);
+          colGrad.addColorStop(1, `rgba(${deepR}, ${deepG}, ${deepB}, ${0.94 * sat * remAlpha})`);
+
+          wx.fillStyle = colGrad;
+          wx.fillRect(dstX - 0.4, yTop - 1, dstW + 0.8, curH + 2);
+        }
+
+        // 2B. Diagonal Molten Wave-Front Ridge (3D liquid lip rolling from Top-Right to Bottom-Left)
+        if (c0.waveBulge > 0.08 && curH > 18) {
+          const ridgeY = yTop + curH * clamp(0.22 + melt * 0.55, 0.15, 0.85);
+          const ridgeH = Math.min(curH * 0.45, 26 * c0.waveBulge);
+          const rg = wx.createLinearGradient(0, ridgeY - ridgeH, 0, ridgeY + ridgeH);
+          rg.addColorStop(0, 'rgba(255, 255, 255, 0)');
+          rg.addColorStop(0.38, `rgba(255, 255, 255, ${0.52 * c0.waveBulge * remAlpha})`);
+          rg.addColorStop(0.72, `rgba(${(cr * 0.55) | 0}, ${(cg * 0.55) | 0}, ${(cb * 0.55) | 0}, ${0.32 * c0.waveBulge * remAlpha})`);
+          rg.addColorStop(1, 'rgba(0, 0, 0, 0)');
+          wx.fillStyle = rg;
+          wx.fillRect(dstX - 0.5, ridgeY - ridgeH, dstW + 1, ridgeH * 2);
+        }
+      }
+
+      // ======================================================================
+      // LAYER 3: INTERNAL FRESNEL THICKNESS BEVEL & CYLINDRICAL STREAM SHADING
+      // ======================================================================
+      // Dark internal refraction rim along the bottom catenary arches and tendrils
+      wx.save();
+      wx.beginPath();
+      wx.moveTo(botPts[0].x, botPts[0].y - 3.5);
+      for (let i = 1; i < n; i++) {
+        const p0 = botPts[i - 1];
+        const p1 = botPts[i];
+        wx.quadraticCurveTo(p0.x, p0.y - 3.5, (p0.x + p1.x) * 0.5, (p0.y + p1.y) * 0.5 - 3.5);
+      }
+      wx.strokeStyle = `rgba(10, 6, 20, ${(0.24 + 0.28 * avgSat) * remAlpha})`;
+      wx.lineWidth = 7.5;
+      wx.shadowColor = `rgba(0, 0, 0, ${0.42 * remAlpha})`;
+      wx.shadowBlur = 9;
+      wx.stroke();
+      wx.restore();
+
+      // Cylindrical 3D specular tubes + internal caustic spines on each hanging stream
+      for (let i = 2; i < n - 2; i++) {
+        const col = cols[i];
+        if (!col.isStreamPeak) continue;
+        const thickness = botPts[i].y - topPts[i].y;
+        if (thickness < 16) continue;
+
+        const sx = botPts[i].x;
+        const syBot = botPts[i].y;
+        const syTop = Math.max(topPts[i].y + 8, syBot - Math.min(thickness * 0.85, 115));
+        if (syBot - syTop < 10) continue;
+
+        // Luminous caustic spine inside the right side of the cylindrical stream
+        const causGrad = wx.createLinearGradient(sx, syTop, sx, syBot);
+        causGrad.addColorStop(0, `rgba(${cr}, ${cg}, ${cb}, 0)`);
+        causGrad.addColorStop(0.4, `rgba(255, 245, 235, ${0.45 * col.localSat * remAlpha})`);
+        causGrad.addColorStop(0.85, `rgba(255, 255, 255, ${0.75 * col.localSat * remAlpha})`);
+        causGrad.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
+
+        wx.beginPath();
+        wx.moveTo(sx + 2.2, syTop);
+        wx.quadraticCurveTo(sx + 3.0, (syTop + syBot) * 0.55, sx + 1.4, syBot - 3);
+        wx.strokeStyle = causGrad;
+        wx.lineWidth = 3.6;
+        wx.lineCap = 'round';
+        wx.stroke();
+
+        // Crisp white specular streak down the left side of the cylindrical stream
+        const specGrad = wx.createLinearGradient(sx, syTop, sx, syBot);
+        specGrad.addColorStop(0, 'rgba(255, 255, 255, 0)');
+        specGrad.addColorStop(0.28, `rgba(255, 255, 255, ${0.75 * col.localSat * remAlpha})`);
+        specGrad.addColorStop(0.88, `rgba(255, 255, 255, ${0.95 * col.localSat * remAlpha})`);
+        specGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+
+        wx.beginPath();
+        wx.moveTo(sx - 2.4, syTop + 4);
+        wx.quadraticCurveTo(sx - 3.2, (syTop + syBot) * 0.5, sx - 1.5, syBot - 4);
+        wx.strokeStyle = specGrad;
+        wx.lineWidth = 2.0;
+        wx.lineCap = 'round';
+        wx.stroke();
+      }
+
+      // ======================================================================
+      // LAYER 4: CHROMATIC DISPERSION & MENISCUS SPECULAR RIBBON
+      // ======================================================================
+      // Subtle cyan/magenta chromatic dispersion fringe along the curved top meniscus
+      wx.save();
+      wx.beginPath();
+      wx.moveTo(topPts[0].x + 3, topPts[0].y + 5.2);
+      for (let i = 1; i < n; i++) {
+        const p0 = topPts[i - 1];
+        const p1 = topPts[i];
+        wx.quadraticCurveTo(p0.x, p0.y + 5.2, (p0.x + p1.x) * 0.5, (p0.y + p1.y) * 0.5 + 5.2);
+      }
+      wx.strokeStyle = `rgba(90, 225, 255, ${0.38 * avgSat * remAlpha})`;
+      wx.lineWidth = 2.2;
+      wx.stroke();
+
+      // Primary razor-sharp white meniscus highlight
+      wx.beginPath();
+      wx.moveTo(topPts[0].x + 3, topPts[0].y + 3.2);
+      for (let i = 1; i < n; i++) {
+        const p0 = topPts[i - 1];
+        const p1 = topPts[i];
+        wx.quadraticCurveTo(p0.x, p0.y + 3.2, (p0.x + p1.x) * 0.5, (p0.y + p1.y) * 0.5 + 3.2);
+      }
+      wx.strokeStyle = `rgba(255, 255, 255, ${(0.88 - 0.12 * avgMelt) * remAlpha})`;
+      wx.lineWidth = 2.8;
+      wx.lineCap = 'round';
+      wx.shadowColor = 'rgba(255, 255, 255, 0.95)';
+      wx.shadowBlur = 6;
+      wx.stroke();
+      wx.restore();
+
+      // Crisp outer Fresnel glass edge
+      traceLiquidContour(wx, 0, 0);
+      wx.strokeStyle = `rgba(255, 255, 255, ${(0.72 - 0.22 * avgSat) * remAlpha})`;
+      wx.lineWidth = 1.5;
+      wx.stroke();
+
+      wx.restore(); // End clip
+    }
+
+    // Photorealistic 3D optical glass droplet with caustic lens, Fresnel rim & chromatic dispersion
+    function drawRealisticDrop(d, curSat, isDark) {
+      const { r: cr, g: cg, b: cb } = d.rgb;
+      const speed = Math.hypot(d.vx, d.vy);
+      const stretch = clamp(1 + speed / 410, 1, 2.45);
+      const osc = Math.sin(d.wobblePhase) * 0.085;
+      const sx = (1 / Math.sqrt(stretch)) * (1 + osc);
+      const sy = stretch * 0.92 * (1 - osc);
+      const angle = Math.atan2(d.vy, d.vx) - Math.PI * 0.5;
+      const rad = d.r;
+
+      // 1. Viscoelastic glass ligament connecting newly pinched drop to parent tendril
+      if (d.ligamentLife > 0 && d.anchorCol && !d.anchorCard.fullyDrained) {
+        const anchorX = d.anchorCard.rect.left + d.anchorCol.xOff;
+        const anchorY = d.anchorCol.botY;
+        const dist = Math.hypot(d.x - anchorX, d.y - anchorY);
+        if (dist < 74 && d.anchorCol.botY > d.anchorCol.topY + 2) {
+          const neckAlpha = (1 - dist / 74) * d.ligamentLife * 0.88;
+          const neckWidth = Math.max(0.8, rad * 0.52 * (1 - dist / 74));
+          wx.save();
+          wx.beginPath();
+          wx.moveTo(anchorX, anchorY - 2);
+          wx.quadraticCurveTo(
+            (anchorX + d.x) * 0.5,
+            (anchorY + d.y) * 0.5,
+            d.x,
+            d.y - rad * sy * 0.72
+          );
+          wx.strokeStyle = `rgba(${cr}, ${cg}, ${cb}, ${neckAlpha})`;
+          wx.lineWidth = neckWidth;
+          wx.lineCap = 'round';
+          wx.stroke();
+
+          wx.strokeStyle = `rgba(255, 255, 255, ${neckAlpha * 0.72})`;
+          wx.lineWidth = neckWidth * 0.36;
+          wx.stroke();
+          wx.restore();
+        } else {
+          d.ligamentLife = 0;
+        }
+      }
+
+      wx.save();
+      wx.translate(d.x, d.y);
+      wx.rotate(angle);
+
+      const traceTeardrop = (scaleM = 1) => {
+        const rw = rad * sx * scaleM;
+        const rhTop = rad * sy * 1.30 * scaleM;
+        const rhBot = rad * sy * 0.92 * scaleM;
+        wx.beginPath();
+        wx.moveTo(0, -rhTop);
+        wx.bezierCurveTo(rw * 0.55, -rhTop * 0.34, rw, -rhBot * 0.08, rw, rhBot * 0.36);
+        wx.bezierCurveTo(rw, rhBot * 0.89, rw * 0.55, rhBot, 0, rhBot);
+        wx.bezierCurveTo(-rw * 0.55, rhBot, -rw, rhBot * 0.89, -rw, rhBot * 0.36);
+        wx.bezierCurveTo(-rw, -rhBot * 0.08, -rw * 0.55, -rhTop * 0.34, 0, -rhTop);
+        wx.closePath();
+      };
+
+      // 2. Cast shadow + focused caustic light spot projected onto the background
+      wx.save();
+      wx.translate(1.8, 6.0);
+      traceTeardrop(0.95);
+      wx.fillStyle = isDark
+        ? 'rgba(0, 0, 0, 0.46)'
+        : `rgba(${(cr * 0.28) | 0}, ${(cg * 0.28) | 0}, ${(cb * 0.28) | 0}, 0.22)`;
+      wx.fill();
+
+      // Bright caustic focal point inside the shadow (real glass lens effect!)
+      wx.fillStyle = `rgba(${cr}, ${cg}, ${cb}, ${0.42 * curSat})`;
+      wx.beginPath();
+      wx.arc(0, rad * sy * 0.25, Math.max(1, rad * sx * 0.48), 0, Math.PI * 2);
+      wx.fill();
+      wx.restore();
+
+      // 3. 3D Refractive Glass Body (Fresnel dark edge + Beer-Lambert core + internal caustic)
+      traceTeardrop(1.0);
+      const bodyGrad = wx.createRadialGradient(
+        0, rad * sy * 0.36, rad * 0.08,
+        0, 0, rad * sy * 1.18
+      );
+      const causR = lerp(255, cr, 0.34 * curSat) | 0;
+      const causG = lerp(255, cg, 0.34 * curSat) | 0;
+      const causB = lerp(255, cb, 0.34 * curSat) | 0;
+
+      const coreR = lerp(245, cr, curSat) | 0;
+      const coreG = lerp(245, cg, curSat) | 0;
+      const coreB = lerp(250, cb, curSat) | 0;
+
+      const rimR = (cr * 0.54) | 0;
+      const rimG = (cg * 0.54) | 0;
+      const rimB = (cb * 0.54) | 0;
+
+      bodyGrad.addColorStop(0, `rgba(${causR}, ${causG}, ${causB}, 0.98)`);
+      bodyGrad.addColorStop(0.48, `rgba(${coreR}, ${coreG}, ${coreB}, 0.95)`);
+      bodyGrad.addColorStop(0.84, `rgba(${rimR}, ${rimG}, ${rimB}, 0.92)`);
+      bodyGrad.addColorStop(1, 'rgba(255, 255, 255, 0.65)');
+      wx.fillStyle = bodyGrad;
+      wx.fill();
+
+      // 4. Primary curved window specular highlight (top-left) + cyan dispersion fringe
+      wx.fillStyle = 'rgba(110, 235, 255, 0.42)';
+      wx.beginPath();
+      wx.ellipse(
+        -rad * sx * 0.28,
+        -rad * sy * 0.05,
+        Math.max(0.7, rad * sx * 0.22),
+        Math.max(1.2, rad * sy * 0.38),
+        -0.20,
+        0,
+        Math.PI * 2
+      );
+      wx.fill();
+
+      wx.fillStyle = `rgba(255, 255, 255, ${0.92 - curSat * 0.10})`;
+      wx.beginPath();
+      wx.ellipse(
+        -rad * sx * 0.33,
+        -rad * sy * 0.09,
+        Math.max(0.7, rad * sx * 0.21),
+        Math.max(1.1, rad * sy * 0.37),
+        -0.20,
+        0,
+        Math.PI * 2
+      );
+      wx.fill();
+
+      // 5. Secondary internal bottom-right meniscus reflection crescent
+      wx.strokeStyle = 'rgba(255, 255, 255, 0.58)';
+      wx.lineWidth = Math.max(0.8, rad * 0.16);
+      wx.lineCap = 'round';
+      wx.beginPath();
+      wx.arc(0, rad * sy * 0.34, Math.max(1, rad * sx * 0.62), 0.15, 1.35);
+      wx.stroke();
+
+      wx.restore();
+    }
+
+    function triggerGreatSplash(now) {
+      if (splashTriggered) return;
+      splashTriggered = true;
+      splashStartTime = now;
+
+      const logoRect = brandLogo.getBoundingClientRect();
+
+      // 1. Droplets aimed at the logo so it can shake them off (Step 9)
+      const aimedCount = 26;
+      for (let i = 0; i < aimedCount; i++) {
+        const col = C[i % C.length];
+        const rgb = RGB_MAP[col];
+        const targetX = logoRect.left + 10 + Math.random() * Math.max(20, logoRect.width - 20);
+        const targetY = logoRect.top + 6 + Math.random() * Math.max(12, logoRect.height - 12);
+        const launchX = w * (0.05 + Math.random() * 0.45);
+        const launchY = h + 6;
+
+        logoDrops.push({
+          state: 'flying',
+          launchX,
+          launchY,
+          targetOffsetX: targetX - logoRect.left,
+          targetOffsetY: targetY - logoRect.top,
+          x: launchX,
+          y: launchY,
+          vx: 0,
+          vy: 0,
+          flightElapsed: 0,
+          flightDur: 0.32 + Math.random() * 0.18,
+          r: 2.4 + Math.random() * 2.6,
+          color: col,
+          rgb,
+          alpha: 1,
+          detachThreshold: 0.15 + Math.random() * 0.78
+        });
+      }
+
+      // 2. Full-screen splash of colorful background-palette dots (Steps 7 & 8)
+      const splashCount = Math.min(480, Math.max(300, (w * h / 3200) | 0));
+      for (let i = 0; i < splashCount; i++) {
+        const col = C[i % C.length];
+        const rgb = RGB_MAP[col];
+        const launchX = (i / splashCount) * w + (Math.random() - 0.5) * (w / 10);
+        const launchY = h + 4 + Math.random() * 20;
+
+        const targetX = Math.random() * w;
+        const targetY = Math.pow(Math.random(), 0.85) * (h * 0.95);
+        const dx = targetX - launchX;
+        const dy = targetY - launchY;
+        const speedMult = 2.6 + Math.random() * 1.45;
+
+        splashDots.push({
+          x: launchX,
+          y: launchY,
+          vx: dx * speedMult + (Math.random() - 0.5) * 150,
+          vy: dy * speedMult - (130 + Math.random() * 230),
+          r: 1.8 + Math.random() * 2.8,
+          color: col,
+          rgb,
+          turbulencePhase: Math.random() * Math.PI * 2
+        });
+      }
+
+      // 3. Synchronize standard background dots (D) with the splash wave
+      D.forEach(p => {
+        const spreadX = (p.hx - w * 0.5) * 0.22 + (Math.random() - 0.5) * 48;
+        const liftY = 42 + (1 - p.ny) * 64 + (Math.random() - 0.5) * 32;
+        p.x = p.hx + spreadX;
+        p.y = Math.min(h + 24, p.hy + liftY);
+      });
+    }
+
+    function step(now) {
+      const dt = Math.min(0.033, Math.max(0.001, (now - lastTime) / 1000));
+      lastTime = now;
+      const elapsed = (now - startTime) / 1000;
+      const isDark = isDarkMode();
+
+      wx.clearRect(0, 0, w, h);
+
+      // ======================================================================
+      // PHASE 1 & 2: DIAGONAL TOP-RIGHT -> BOTTOM-LEFT MELTING & DRIPPING
+      // ======================================================================
+      let allCardsMelted = true;
+      cardStates.forEach(cs => {
+        updateAndDrawMeltingCard(cs, elapsed, dt, isDark);
+        if (!cs.fullyDrained) allCardsMelted = false;
+      });
+
+      const gravity = 1180; // px/s^2
+      for (let i = fluidDrops.length - 1; i >= 0; i--) {
+        const d = fluidDrops[i];
+        d.vy += gravity * dt;
+        d.vx *= Math.pow(0.986, dt * 60);
+        d.wobblePhase += d.wobbleSpeed * dt;
+        d.ligamentLife = Math.max(0, d.ligamentLife - dt * 2.9);
+        d.x += (d.vx + Math.sin(d.wobblePhase) * 10) * dt;
+        d.y += d.vy * dt;
+
+        const fallRatio = clamp(d.y / h, 0, 1);
+        const curSat = clamp(d.saturation + fallRatio * 0.46, 0.45, 1);
+
+        // Immediately past the bottom screen border, liquid stops flowing and accumulates
+        if (d.y - d.r * 1.8 >= h + 2) {
+          accumulatedMass += d.mass;
+          fluidDrops.splice(i, 1);
+          continue;
+        }
+
+        drawRealisticDrop(d, curSat, isDark);
+      }
+
+      // ======================================================================
+      // PHASE 2 & 3: SUBTLE GLOW WHILE FLOWING -> SURGE WHEN DRAINED
+      // ======================================================================
+      const normAccum = totalSpawnedMass > 0
+        ? clamp(accumulatedMass / Math.max(totalSpawnedMass * 0.85, 90), 0, 1)
+        : 0;
+
+      if (!splashTriggered) {
+        fieldFadeFactor = clamp(1 - normAccum * 0.95, 0.03, 1);
+      }
+
+      // Failsafe: if elapsed > 3.5s, ensure all cards are marked drained so the sequence can never stall
+      if (elapsed > 3.5) {
+        allCardsMelted = true;
+      }
+
+      let overchargeBoost = 0;
+      if (!splashTriggered && allCardsMelted && (fluidDrops.length === 0 || elapsed > 3.9)) {
+        if (!overchargeStart) overchargeStart = now;
+        const overElapsed = (now - overchargeStart) / 1000;
+        overchargeBoost = smoothstep(0, 0.54, overElapsed);
+        if (overElapsed >= 0.54) {
+          triggerGreatSplash(now);
+        }
+      }
+
+      let glowDischarge = 1;
+      if (splashTriggered) {
+        const sinceSplash = (now - splashStartTime) / 1000;
+        glowDischarge = 1 - smoothstep(0, 0.72, sinceSplash);
+      }
+
+      // Subtle glow while flowing (max ~0.13); strong surge (up to 0.95) once all glass has drained
+      const flowingSubtleGlow = Math.pow(normAccum, 1.65) * 0.13;
+      const surgeGlow = Math.pow(overchargeBoost, 1.2) * 0.84;
+      const activeGlow = (flowingSubtleGlow + surgeGlow) * glowDischarge;
+      root.style.setProperty('--reservoir-glow', activeGlow.toFixed(3));
+
+      if (activeGlow > 0.003) {
+        wx.save();
+        wx.globalCompositeOperation = 'screen';
+
+        const glowHeight = h * (0.08 + flowingSubtleGlow * 0.30 + surgeGlow * 0.46);
+        const ambGrad = wx.createLinearGradient(0, h, 0, h - glowHeight);
+        ambGrad.addColorStop(0, `rgba(255, 92, 132, ${clamp(activeGlow * 0.62, 0, 0.92)})`);
+        ambGrad.addColorStop(0.38, `rgba(122, 92, 255, ${clamp(activeGlow * 0.34, 0, 0.64)})`);
+        ambGrad.addColorStop(0.74, `rgba(47, 184, 255, ${clamp(activeGlow * 0.14, 0, 0.34)})`);
+        ambGrad.addColorStop(1, 'rgba(47, 184, 255, 0)');
+        wx.fillStyle = ambGrad;
+        wx.fillRect(0, h - glowHeight, w, glowHeight);
+
+        cardStates.forEach(cs => {
+          const cx = cs.rect.left + cs.rect.width * 0.5;
+          const rad = Math.max(w * 0.22, 180) * (0.42 + activeGlow * 0.85);
+          const { r: cr, g: cg, b: cb } = cs.rgb;
+          const rg = wx.createRadialGradient(cx, h + 18, 2, cx, h + 18, rad);
+          rg.addColorStop(0, `rgba(255, 255, 255, ${clamp(activeGlow * 0.78, 0, 0.98)})`);
+          rg.addColorStop(0.25, `rgba(${cr}, ${cg}, ${cb}, ${clamp(activeGlow * 0.72, 0, 0.92)})`);
+          rg.addColorStop(0.65, `rgba(${cr}, ${cg}, ${cb}, ${clamp(activeGlow * 0.22, 0, 0.42)})`);
+          rg.addColorStop(1, `rgba(${cr}, ${cg}, ${cb}, 0)`);
+          wx.fillStyle = rg;
+          wx.beginPath();
+          wx.arc(cx, h + 18, rad, Math.PI, Math.PI * 2);
+          wx.fill();
+        });
+
+        wx.restore();
+      }
+
+      // ======================================================================
+      // PHASE 4 & 5: SPLASH, DOT REPLACEMENT & LOGO SHAKE (Steps 7, 8, 9)
+      // ======================================================================
+      let splashPhaseDone = false;
+      if (splashTriggered) {
+        const sTime = (now - splashStartTime) / 1000;
+
+        // Splash dots dim out while standard dots (#field) simultaneously gain color & alpha
+        const crossfade = smoothstep(0.52, 2.15, sTime);
+        fieldFadeFactor = 0.03 + 0.97 * crossfade;
+        fieldColorSaturation = smoothstep(0.42, 2.05, sTime);
+
+        const drag = Math.pow(0.915, dt * 60);
+        const splashAlpha = Math.pow(1 - crossfade, 1.25);
+
+        splashDots.forEach(sp => {
+          sp.vx *= drag;
+          sp.vy *= drag;
+          sp.vy += 26 * dt * (1 - crossfade);
+          sp.turbulencePhase += 4 * dt;
+          sp.x += (sp.vx + Math.cos(sp.turbulencePhase) * 8 * (1 - crossfade)) * dt;
+          sp.y += sp.vy * dt;
+
+          if (splashAlpha <= 0.005) return;
+
+          const { r: cr, g: cg, b: cb } = sp.rgb;
+          const speed = Math.hypot(sp.vx, sp.vy);
+          const stretch = clamp(1 + speed / 640, 1, 2.4);
+
+          wx.save();
+          wx.translate(sp.x, sp.y);
+          if (stretch > 1.08) {
+            wx.rotate(Math.atan2(sp.vy, sp.vx));
+            wx.scale(stretch, 1 / Math.sqrt(stretch));
+          }
+          wx.globalAlpha = splashAlpha * 0.92;
+          wx.fillStyle = `rgb(${cr}, ${cg}, ${cb})`;
+          wx.beginPath();
+          wx.arc(0, 0, sp.r, 0, Math.PI * 2);
+          wx.fill();
+          wx.restore();
+        });
+
+        // Step 9: Logo wobbles left-right, shakes off splashed droplets, and returns to normal
+        let logoAngleDeg = 0;
+        let logoShiftX = 0;
+        let shakeAccel = 0;
+
+        if (sTime >= 0.40 && sTime <= 1.95) {
+          const wt = (sTime - 0.40) / (1.95 - 0.40);
+          const env = Math.sin(wt * Math.PI) * Math.pow(1 - wt, 0.62);
+          const freq = 24.0;
+          logoAngleDeg = Math.sin(wt * freq) * 12.0 * env;
+          logoShiftX = Math.sin(wt * freq) * 10.0 * env;
+          shakeAccel = Math.abs(Math.cos(wt * freq)) * env;
+          brandLogo.style.transition = 'none';
+          brandLogo.style.transform = `translateX(${logoShiftX.toFixed(2)}px) rotate(${logoAngleDeg.toFixed(2)}deg)`;
+        } else if (sTime > 1.95) {
+          brandLogo.style.transition = '';
+          brandLogo.style.transform = '';
+        }
+
+        const curLogoRect = brandLogo.getBoundingClientRect();
+        const shakeProgress = smoothstep(0.42, 1.45, sTime);
+
+        logoDrops.forEach(ld => {
+          if (ld.state === 'flying') {
+            ld.flightElapsed += dt;
+            const u = clamp(ld.flightElapsed / ld.flightDur, 0, 1);
+            const easeU = 1 - Math.pow(1 - u, 2.4);
+            const destX = curLogoRect.left + ld.targetOffsetX;
+            const destY = curLogoRect.top + ld.targetOffsetY;
+            ld.x = ld.launchX + (destX - ld.launchX) * easeU;
+            ld.y = ld.launchY + (destY - ld.launchY) * easeU - Math.sin(u * Math.PI) * 36;
+            if (u >= 1) ld.state = 'stuck';
+          } else if (ld.state === 'stuck') {
+            ld.x = curLogoRect.left + ld.targetOffsetX;
+            ld.y = curLogoRect.top + ld.targetOffsetY;
+
+            if (shakeProgress >= ld.detachThreshold && shakeAccel > 0.22) {
+              ld.state = 'flung';
+              const dir = logoShiftX >= 0 ? 1 : -1;
+              ld.vx = dir * (140 + Math.random() * 195) + (Math.random() - 0.5) * 65;
+              ld.vy = -50 - Math.random() * 95;
+            }
+          } else if (ld.state === 'flung') {
+            ld.vy += 540 * dt;
+            ld.vx *= Math.pow(0.96, dt * 60);
+            ld.x += ld.vx * dt;
+            ld.y += ld.vy * dt;
+            ld.alpha = Math.max(0, ld.alpha - dt * 1.45);
+          }
+
+          if (ld.alpha <= 0.01) return;
+          wx.save();
+          wx.globalAlpha = ld.alpha;
+          wx.fillStyle = ld.color;
+          wx.shadowColor = ld.color;
+          wx.shadowBlur = 5;
+          wx.beginPath();
+          wx.arc(ld.x, ld.y, ld.r, 0, Math.PI * 2);
+          wx.fill();
+          wx.restore();
+        });
+
+        // Smoothly restore the 4 liquid glass cards back to their standard resting state
+        const cardRestore = smoothstep(1.35, 2.35, sTime);
+        if (cardRestore > 0) {
+          cardStates.forEach(cs => {
+            const targetOp = cs.isDisabled ? 0.68 : 1;
+            cs.el.style.opacity = `${cardRestore * targetOp}`;
+            cs.el.style.transform = `translateY(${(1 - cardRestore) * 10}px) scale(${0.97 + 0.03 * cardRestore})`;
+          });
+        }
+
+        if (sTime >= 2.45) {
+          splashPhaseDone = true;
+        }
+      }
+
+      if (!splashPhaseDone) {
+        requestAnimationFrame(step);
+      } else {
+        wx.clearRect(0, 0, w, h);
+        root.style.setProperty('--reservoir-glow', '0');
+        fieldFadeFactor = 1;
+        fieldColorSaturation = 1;
+        brandLogo.style.transition = '';
+        brandLogo.style.transform = '';
+        cardStates.forEach(cs => {
+          cs.el.style.transition = '';
+          cs.el.style.opacity = '';
+          cs.el.style.transform = '';
+        });
+        productsList.style.pointerEvents = '';
+        wowActive = false;
+        wake();
+      }
+    }
+
+    requestAnimationFrame(step);
+  }
 })();
 
 // Legal Modal Handler (Plural form: сервисы / сайты / решения Sparkle Lab)
