@@ -14,20 +14,20 @@
   /* Liquid Glass surfaces (Light) */
   --glass-bg: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.65) 0%,
-    rgba(255, 255, 255, 0.32) 50%,
-    rgba(255, 255, 255, 0.52) 100%
+    rgba(255, 255, 255, 0.62) 0%,
+    rgba(255, 255, 255, 0.28) 50%,
+    rgba(255, 255, 255, 0.48) 100%
   );
   --glass-hover: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.82) 0%,
-    rgba(255, 255, 255, 0.46) 50%,
-    rgba(255, 255, 255, 0.70) 100%
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(255, 255, 255, 0.42) 50%,
+    rgba(255, 255, 255, 0.66) 100%
   );
   --glass-off: linear-gradient(
     135deg,
-    rgba(235, 236, 242, 0.45) 0%,
-    rgba(225, 226, 234, 0.25) 100%
+    rgba(235, 236, 242, 0.42) 0%,
+    rgba(225, 226, 234, 0.22) 100%
   );
   --glass-border: rgba(255, 255, 255, 0.75);
   --glass-edge: rgba(29, 29, 31, 0.08);
@@ -46,7 +46,7 @@
   --pill-bg: rgba(255, 255, 255, 0.55);
   --halo: rgba(244, 245, 249, 0.82);
 
-  /* Skeleton styling */
+  /* Variant 10 static placeholder tone */
   --skeleton-base: rgba(0, 0, 0, 0.06);
   --skeleton-highlight: rgba(255, 255, 255, 0.75);
 
@@ -63,6 +63,7 @@
     --mute: #9a9aa2;
     --divider: rgba(255, 255, 255, 0.22);
 
+    /* Liquid Glass surfaces (Dark) */
     --glass-bg: linear-gradient(
       135deg,
       rgba(255, 255, 255, 0.13) 0%,
@@ -175,7 +176,7 @@ body {
 
 @keyframes fade { from { opacity: 0; } }
 
-/* Top Navigation Bar */
+/* Top Navigation Bar (Logo Top-Left + Theme Toggle Top-Right) */
 .topbar {
   position: fixed;
   top: max(18px, env(safe-area-inset-top, 18px));
@@ -183,9 +184,17 @@ body {
   right: 24px;
   z-index: 3;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   pointer-events: none;
+}
+
+.brand-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: auto;
 }
 
 .brand-pill,
@@ -240,6 +249,39 @@ body {
   outline-offset: 3px;
 }
 
+/* Legal links under logo (Оферта • Конфиденциальность) */
+.legal-nav {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding-left: 14px;
+  user-select: none;
+}
+
+.legal-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--mute);
+  cursor: pointer;
+  transition: color .2s ease;
+  line-height: 1.2;
+}
+
+.legal-btn:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.legal-dot {
+  opacity: 0.4;
+  font-size: 10px;
+  color: var(--mute);
+}
+
 main {
   position: relative;
   z-index: 1;
@@ -277,19 +319,16 @@ h1 {
   width: 100%;
   max-width: 980px;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 22px;
 }
-@media (max-width: 980px) { .products { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 520px) { .products { grid-template-columns: 1fr; } }
 
 .products li { display: flex; }
 
-/* Liquid Glass Card */
+/* Liquid Glass Card (Original proportions strictly preserved) */
 .card {
   position: relative;
   width: 100%;
-  min-height: 240px;
   padding: 24px 22px;
   border-radius: 28px;
   border: 1px solid var(--glass-edge);
@@ -302,26 +341,13 @@ h1 {
   text-align: left;
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
+  justify-content: space-between;
   gap: 18px;
   overflow: hidden;
   transition: transform .4s cubic-bezier(0.22, 1, 0.36, 1),
               box-shadow .4s ease,
               border-color .4s ease,
               background .4s ease;
-}
-
-.card-body {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-}
-
-.micro-preview {
-  margin-top: auto;
 }
 
 /* Liquid caustic light refraction following cursor */
@@ -390,8 +416,8 @@ h1 {
 
 .card[aria-disabled="true"] {
   background: var(--glass-off);
-  cursor: default;
-  opacity: 0.72;
+  cursor: not-allowed;
+  opacity: 0.68;
 }
 
 .card-top {
@@ -498,63 +524,166 @@ h1 {
   font-weight: 500;
 }
 
-/* Skeleton Elements for disabled cards */
-.skeleton-shimmer {
-  /* Static elegant liquid glass gradient: no moving loader wave */
-  background: linear-gradient(
-    135deg,
-    var(--skeleton-highlight) 0%,
-    var(--skeleton-base) 55%,
-    color-mix(in srgb, var(--accent) 9%, var(--skeleton-base)) 100%
-  );
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.4),
-              0 1px 2px rgba(0, 0, 0, 0.03);
-}
-
-.skeleton-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 15px;
+/* VARIANT 10: Static Calm in rest, Soft Specular Glow on Hover */
+.v10-elem {
+  background: var(--skeleton-base);
   border: 1px solid var(--glass-edge);
+  transition: background .35s ease, border-color .35s ease, box-shadow .35s ease;
 }
 
-.skeleton-title {
-  height: 22px;
-  width: 68%;
-  border-radius: 8px;
-  margin-bottom: 9px;
+.card[aria-disabled="true"]:hover .v10-elem {
+  background: linear-gradient(135deg, var(--skeleton-highlight) 0%, var(--skeleton-base) 80%);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 14px rgba(255, 255, 255, 0.12);
 }
 
-.skeleton-desc-1 {
-  height: 14px;
-  width: 95%;
-  border-radius: 6px;
-  margin-bottom: 6px;
+.s-icon { width: 44px; height: 44px; border-radius: 15px; }
+.s-title { height: 20px; width: 68%; border-radius: 7px; margin-bottom: 6px; }
+.s-d1 { height: 14px; width: 95%; border-radius: 5px; margin-bottom: 5px; }
+.s-d2 { height: 14px; width: 58%; border-radius: 5px; }
+.s-b1 { height: 23px; width: 44px; border-radius: 7px; }
+.s-b2 { height: 23px; width: 66px; border-radius: 7px; }
+
+/* Liquid Glass Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.48);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
 }
 
-.skeleton-desc-2 {
-  height: 14px;
-  width: 58%;
-  border-radius: 6px;
+.modal-backdrop.active {
+  display: flex;
 }
 
-.skeleton-badge {
-  height: 24px;
-  border-radius: 8px;
+.modal-card {
+  width: 100%;
+  max-width: 640px;
+  max-height: 84vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 28px;
   border: 1px solid var(--glass-edge);
+  background: var(--bg);
+  box-shadow: var(--glass-specular-hover), 0 32px 64px -12px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  text-align: left;
 }
 
-.skeleton-badge.b-short { width: 44px; }
-.skeleton-badge.b-long { width: 66px; }
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 24px 28px 16px;
+  border-bottom: 1px solid var(--glass-edge);
+}
+
+.modal-title {
+  margin: 0 0 4px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+
+.modal-subtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mute);
+}
+
+.modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-edge);
+  background: var(--pill-bg);
+  color: var(--mute);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all .2s ease;
+}
+
+.modal-close:hover {
+  background: var(--glass-hover);
+  color: var(--ink);
+}
+
+.modal-body {
+  padding: 22px 28px;
+  overflow-y: auto;
+  font-size: 13.5px;
+  line-height: 1.58;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.modal-section-title {
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.modal-section-text {
+  color: var(--mute);
+  margin: 0;
+}
+
+.modal-highlight-box {
+  padding: 12px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, #34c759 12%, var(--pill-bg));
+  border: 1px solid color-mix(in srgb, #34c759 28%, transparent);
+  color: var(--ink);
+  font-size: 12.5px;
+}
+
+.modal-footer {
+  padding: 16px 28px 22px;
+  border-top: 1px solid var(--glass-edge);
+  display: flex;
+  justify-content: flex-end;
+}
+
+.modal-btn {
+  padding: 9px 24px;
+  border-radius: 999px;
+  border: none;
+  background: var(--ink);
+  color: var(--bg);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .2s ease, opacity .2s ease;
+}
+
+.modal-btn:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
 
 @media (max-width: 520px) {
   .topbar { left: 16px; right: 16px; }
   .brand-logo-svg { height: 22px; }
+  .legal-nav { padding-left: 8px; font-size: 11px; }
+  .modal-card { max-height: 90vh; }
+  .modal-header, .modal-body, .modal-footer { padding-left: 20px; padding-right: 20px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   #field { animation: none; }
-  .card, .arrow, .brand-pill, .theme-toggle, .skeleton-shimmer { transition: none; animation: none; }
+  .card, .arrow, .brand-pill, .theme-toggle, .v10-elem { transition: none; animation: none; }
 }
 </style>
 </head>
@@ -562,32 +691,41 @@ h1 {
 <canvas id="field" aria-hidden="true"></canvas>
 
 <header class="topbar">
-  <!-- Inline SVG logo: works standalone and adapts to theme -->
-  <a class="brand-pill" href="#" aria-label="Sparkle Lab">
-    <svg class="brand-logo-svg" viewBox="0 0 430 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sparkle Lab">
-      <defs>
-        <linearGradient id="triRim" x1="0" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stop-color="#fff5f2"/>
-          <stop offset="50%" stop-color="#ffb8c6"/>
-          <stop offset="100%" stop-color="#ffdca8"/>
-        </linearGradient>
-        <linearGradient id="triCore" x1="18" y1="12" x2="48" y2="56" gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stop-color="#ff247f"/>
-          <stop offset="52%" stop-color="#ff5e3a"/>
-          <stop offset="100%" stop-color="#ffb91d"/>
-        </linearGradient>
-        <g id="sparkleTri">
-          <path d="M25.5 7.5C27.5 3.9 32.5 3.9 34.5 7.5L56.2 46.5C58.1 50 55.6 54.3 51.6 54.3H8.4C4.4 54.3 1.9 50 3.8 46.5L25.5 7.5Z" fill="url(#triRim)"/>
-          <path d="M27.2 14.2C28.5 11.9 31.5 11.9 32.8 14.2L50.4 45.8C51.7 48.1 50.1 50.9 47.5 50.9H12.5C9.9 50.9 8.3 48.1 9.6 45.8L27.2 14.2Z" fill="url(#triCore)"/>
-        </g>
-      </defs>
-      <use href="#sparkleTri" x="0" y="3"/>
-      <use href="#sparkleTri" x="62" y="3"/>
-      <use href="#sparkleTri" x="124" y="3"/>
-      <line x1="204" y1="6" x2="204" y2="58" stroke="var(--divider)" stroke-width="2" stroke-linecap="round"/>
-      <text x="224" y="45" fill="currentColor" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Inter, sans-serif" font-size="38" font-weight="400" letter-spacing="-0.02em">Sparkle Lab</text>
-    </svg>
-  </a>
+  <div class="brand-stack">
+    <!-- Brand Logo Pill -->
+    <a class="brand-pill" href="#" aria-label="Sparkle Lab">
+      <svg class="brand-logo-svg" viewBox="0 0 430 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sparkle Lab">
+        <defs>
+          <linearGradient id="triRim" x1="0" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#fff5f2"/>
+            <stop offset="50%" stop-color="#ffb8c6"/>
+            <stop offset="100%" stop-color="#ffdca8"/>
+          </linearGradient>
+          <linearGradient id="triCore" x1="18" y1="12" x2="48" y2="56" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#ff247f"/>
+            <stop offset="52%" stop-color="#ff5e3a"/>
+            <stop offset="100%" stop-color="#ffb91d"/>
+          </linearGradient>
+          <g id="sparkleTri">
+            <path d="M25.5 7.5C27.5 3.9 32.5 3.9 34.5 7.5L56.2 46.5C58.1 50 55.6 54.3 51.6 54.3H8.4C4.4 54.3 1.9 50 3.8 46.5L25.5 7.5Z" fill="url(#triRim)"/>
+            <path d="M27.2 14.2C28.5 11.9 31.5 11.9 32.8 14.2L50.4 45.8C51.7 48.1 50.1 50.9 47.5 50.9H12.5C9.9 50.9 8.3 48.1 9.6 45.8L27.2 14.2Z" fill="url(#triCore)"/>
+          </g>
+        </defs>
+        <use href="#sparkleTri" x="0" y="3"/>
+        <use href="#sparkleTri" x="62" y="3"/>
+        <use href="#sparkleTri" x="124" y="3"/>
+        <line x1="204" y1="6" x2="204" y2="58" stroke="var(--divider)" stroke-width="2" stroke-linecap="round"/>
+        <text x="224" y="45" fill="currentColor" font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Inter, sans-serif" font-size="38" font-weight="400" letter-spacing="-0.02em">Sparkle Lab</text>
+      </svg>
+    </a>
+
+    <!-- Legal Links (Оферта • Конфиденциальность) -->
+    <nav class="legal-nav" aria-label="Юридические документы">
+      <button type="button" class="legal-btn" onclick="openLegalModal('terms')">Оферта</button>
+      <span class="legal-dot">•</span>
+      <button type="button" class="legal-btn" onclick="openLegalModal('privacy')">Конфиденциальность</button>
+    </nav>
+  </div>
 
   <button class="theme-toggle" id="themeBtn" type="button" aria-label="Toggle color theme" title="Toggle theme">
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -634,7 +772,7 @@ h1 {
         </div>
         <div class="card-body">
           <span class="card-title">Курьерская аналитика</span>
-          <p class="card-desc" id="d2">Удобная аналитика дохода → нужные показатели всегда рядом.</p>
+          <p class="card-desc" id="d2">Удобная аналитика дохода → Нужные показатели всегда рядом.</p>
         </div>
         <div class="micro-preview">
           <span class="badge-pill badge-accent">B2C</span>
@@ -643,43 +781,60 @@ h1 {
       </a>
     </li>
 
-    <!-- Card 3: Disabled / Skeleton -->
+    <!-- Card 3: Disabled / Variant 10 (Calm Static + Hover Glow) -->
     <li>
       <div class="card" role="link" aria-disabled="true" style="--accent:#7a5cff" data-color="#7a5cff" aria-describedby="d3">
         <div class="card-top">
-          <span class="skeleton-icon skeleton-shimmer" aria-hidden="true"></span>
+          <span class="s-icon v10-elem" aria-hidden="true"></span>
         </div>
         <div class="card-body">
-          <div class="skeleton-title skeleton-shimmer"></div>
-          <div class="skeleton-desc-1 skeleton-shimmer"></div>
-          <div class="skeleton-desc-2 skeleton-shimmer"></div>
+          <div class="s-title v10-elem"></div>
+          <div class="s-d1 v10-elem"></div>
+          <div class="s-d2 v10-elem"></div>
         </div>
         <div class="micro-preview">
-          <span class="skeleton-badge b-short skeleton-shimmer"></span>
-          <span class="skeleton-badge b-long skeleton-shimmer"></span>
+          <span class="s-b1 v10-elem"></span>
+          <span class="s-b2 v10-elem"></span>
         </div>
       </div>
     </li>
 
-    <!-- Card 4: Disabled / Skeleton -->
+    <!-- Card 4: Disabled / Variant 10 (Calm Static + Hover Glow) -->
     <li>
       <div class="card" role="link" aria-disabled="true" style="--accent:#2fb8ff" data-color="#2fb8ff" aria-describedby="d4">
         <div class="card-top">
-          <span class="skeleton-icon skeleton-shimmer" aria-hidden="true"></span>
+          <span class="s-icon v10-elem" aria-hidden="true"></span>
         </div>
         <div class="card-body">
-          <div class="skeleton-title skeleton-shimmer"></div>
-          <div class="skeleton-desc-1 skeleton-shimmer"></div>
-          <div class="skeleton-desc-2 skeleton-shimmer"></div>
+          <div class="s-title v10-elem"></div>
+          <div class="s-d1 v10-elem"></div>
+          <div class="s-d2 v10-elem"></div>
         </div>
         <div class="micro-preview">
-          <span class="skeleton-badge b-short skeleton-shimmer"></span>
-          <span class="skeleton-badge b-long skeleton-shimmer"></span>
+          <span class="s-b1 v10-elem"></span>
+          <span class="s-b2 v10-elem"></span>
         </div>
       </div>
     </li>
   </ul>
 </main>
+
+<!-- Legal Documents Modal (Liquid Glass) -->
+<div id="legalModal" class="modal-backdrop" aria-hidden="true" onclick="if(event.target===this)closeLegalModal()">
+  <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="legalTitle">
+    <div class="modal-header">
+      <div>
+        <h2 id="legalTitle" class="modal-title"></h2>
+        <p id="legalSubtitle" class="modal-subtitle"></p>
+      </div>
+      <button type="button" class="modal-close" onclick="closeLegalModal()" aria-label="Закрыть">✕</button>
+    </div>
+    <div id="legalBody" class="modal-body"></div>
+    <div class="modal-footer">
+      <button type="button" class="modal-btn" onclick="closeLegalModal()">Понятно</button>
+    </div>
+  </div>
+</div>
 
 <script>
 (() => {
@@ -757,6 +912,78 @@ h1 {
   });
   addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => { fit(); wake(); }, 120); });
 })();
+
+// Legal Modal Handler (Plural form: сервисы / сайты / решения Sparkle Lab)
+function openLegalModal(docType) {
+  const modal = document.getElementById('legalModal');
+  const title = document.getElementById('legalTitle');
+  const subtitle = document.getElementById('legalSubtitle');
+  const body = document.getElementById('legalBody');
+  if (!modal || !title || !body) return;
+
+  if (docType === 'terms') {
+    title.textContent = 'Пользовательское соглашение (Оферта)';
+    subtitle.textContent = 'Условия использования аналитических сервисов и веб-интерфейсов Sparkle Lab';
+    body.innerHTML = `
+      <div>
+        <div class="modal-section-title">1. Предмет соглашения</div>
+        <p class="modal-section-text">Настоящее Пользовательское соглашение (Оферта) определяет условия использования веб-интерфейсов, веб-приложений и аналитических сервисов лаборатории Sparkle Lab (далее — Сервисы), являющихся независимыми исследовательскими и прикладными инструментами для аналитики доходов, операционных показателей и моделирования данных.</p>
+      </div>
+      <div>
+        <div class="modal-section-title">2. Информационно-расчетный характер</div>
+        <p class="modal-section-text">Все расчеты, формулы, симуляции эластичности, почасовые ставки, прогнозные показатели и аналитические отчеты, формируемые в интерфейсах Сервисов, носят исключительно ознакомительный, расчетный и аналитический характер.</p>
+      </div>
+      <div>
+        <div class="modal-section-title">3. Условия «КАК ЕСТЬ» (AS IS) и ограничение ответственности</div>
+        <p class="modal-section-text">Сервисы предоставляются на условиях «КАК ЕСТЬ» («AS IS»), без каких-либо явных, подразумеваемых или установленных законом гарантий, включая гарантии коммерческой пригодности, точности, надежности, бесперебойности или безошибочности работы алгоритмов.</p>
+        <p class="modal-section-text" style="margin-top:6px;">Правообладатели и разработчики ни при каких обстоятельствах не несут ответственности перед Пользователями или третьими лицами за любые прямые, косвенные, случайные или сопутствующие убытки, включая упущенную выгоду, реальный ущерб, потерю данных, штрафные санкции со стороны платформ или перерывы в деятельности, возникшие в связи с использованием либо невозможностью использования Сервисов.</p>
+        <p class="modal-section-text" style="margin-top:6px;">Сервисы не являются работодателями, агрегаторами заказов или налоговыми агентами. Пользователи принимают на себя все риски и единоличную ответственность за любые решения, основанные на данных Сервисов.</p>
+      </div>
+      <div>
+        <div class="modal-section-title">4. Интеллектуальная собственность</div>
+        <p class="modal-section-text">Программный код, интерфейсы, архитектурные решения, математические модули и графические элементы защищены авторским правом. Коммерческое использование, декомпиляция или несанкционированное копирование без согласия правообладателей запрещены.</p>
+      </div>
+    `;
+  } else {
+    title.textContent = 'Политика конфиденциальности';
+    subtitle.textContent = 'Безопасность и 100% In-Memory обработка пользовательских данных';
+    body.innerHTML = `
+      <div class="modal-highlight-box">
+        <div style="font-weight:700;margin-bottom:3px;">🔒 100% In-Memory обработка (Zero-Server)</div>
+        <div style="font-size:12px;opacity:0.9;">Все пользовательские файлы и расчеты обрабатываются исключительно в оперативной памяти браузера на устройствах пользователей.</div>
+      </div>
+      <div>
+        <div class="modal-section-title">1. Локальная обработка на устройствах пользователей</div>
+        <p class="modal-section-text">Сервисы функционируют по бессерверной клиентской архитектуре (Client-Side Only). При импорте отчетов, Excel-файлов или ручном вводе параметров расчеты выполняются локальным кодом непосредственно в оперативной памяти браузера.</p>
+      </div>
+      <div>
+        <div class="modal-section-title">2. Отсутствие передачи на внешние серверы</div>
+        <p class="modal-section-text">Данные о доходах, сменах, расписании, коммерческих показателях и эластичности никуда не передаются и не сохраняются на внешних серверах. В коде Сервисов полностью отсутствуют сетевые запросы отправки пользовательских данных.</p>
+      </div>
+      <div>
+        <div class="modal-section-title">3. Полное уничтожение данных при закрытии сессии</div>
+        <p class="modal-section-text">Загруженные отчеты и параметры расчетов существуют только в оперативной памяти текущей сессии. При закрытии вкладок браузера или перезагрузке страниц все локальные данные текущей сессии безвозвратно удаляются.</p>
+      </div>
+      <div>
+        <div class="modal-section-title">4. Отсутствие трекеров</div>
+        <p class="modal-section-text">Сервисы не используют рекламные трекеры, маркетинговые пиксели и следящие файлы cookies.</p>
+      </div>
+    `;
+  }
+
+  modal.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLegalModal() {
+  const modal = document.getElementById('legalModal');
+  if (modal) modal.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLegalModal();
+});
 </script>
 </body>
 </html>
