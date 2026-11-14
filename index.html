@@ -51,7 +51,7 @@
   --skeleton-highlight: rgba(255, 255, 255, 0.75);
 
   /* Subtle legal links color */
-  --legal-color: rgba(29, 29, 31, 0.44);
+  --legal-color: rgba(29, 29, 31, 0.36);
 
   color-scheme: light;
   box-sizing: border-box;
@@ -104,7 +104,7 @@
     --skeleton-base: rgba(255, 255, 255, 0.05);
     --skeleton-highlight: rgba(255, 255, 255, 0.15);
 
-    --legal-color: rgba(255, 255, 255, 0.40);
+    --legal-color: rgba(255, 255, 255, 0.32);
 
     color-scheme: dark;
   }
@@ -150,7 +150,7 @@
   --halo: rgba(5, 5, 8, 0.78);
   --skeleton-base: rgba(255, 255, 255, 0.05);
   --skeleton-highlight: rgba(255, 255, 255, 0.15);
-  --legal-color: rgba(255, 255, 255, 0.40);
+  --legal-color: rgba(255, 255, 255, 0.32);
   color-scheme: dark;
 }
 
@@ -259,8 +259,10 @@ body {
 .legal-nav {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding-left: 14px;
+  padding: 0;
+  margin: 0;
   user-select: none;
 }
 
@@ -268,13 +270,15 @@ body {
   background: none;
   border: none;
   padding: 0;
+  margin: 0;
   font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 550;
+  font-size: 10.5px;
+  font-weight: 450;
   color: var(--legal-color);
   cursor: pointer;
   transition: color .2s ease;
   line-height: 1.2;
+  letter-spacing: 0.01em;
 }
 
 .legal-btn:hover {
@@ -685,7 +689,15 @@ h1 {
 @media (max-width: 520px) {
   .topbar { left: 16px; right: 16px; }
   .brand-logo-svg { height: 22px; }
-  .legal-nav { padding-left: 8px; font-size: 10.5px; }
+  .legal-nav {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0;
+  margin: 0;
+  user-select: none;
+}
   .modal-card { max-height: 90vh; }
   .modal-header, .modal-body, .modal-footer { padding-left: 20px; padding-right: 20px; }
 }
